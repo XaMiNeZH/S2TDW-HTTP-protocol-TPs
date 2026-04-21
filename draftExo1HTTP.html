@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Client HTTP Minimaliste</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Courier New', monospace;
+      background: #0f0f0f;
+      color: #e8e8e8;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    h1 {
+      font-size: 14px;
+      font-weight: normal;
+      color: #555;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 1.5rem;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+      align-items: stretch;
+    }
+
+    select, input[type="text"], textarea {
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 6px;
+      color: #e8e8e8;
+      padding: 8px 12px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    select:focus, input[type="text"]:focus, textarea:focus {
+      border-color: #444;
+    }
+
+    select { width: 110px; flex-shrink: 0; cursor: pointer; }
+    input[type="text"] { flex: 1; }
+
+    .send-btn {
+      background: #e8e8e8;
+      color: #0f0f0f;
+      border: none;
+      border-radius: 6px;
+      padding: 0 20px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: 'Courier New', monospace;
+      white-space: nowrap;
+      transition: opacity 0.15s;
+    }
+    .send-btn:hover { opacity: 0.85; }
+    .send-btn:active { opacity: 0.7; transform: scale(0.98); }
+    .send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    .section-label {
+      font-size: 11px;
+      color: #444;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      margin-top: 14px;
+    }
+
+    .hdr-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 6px;
+      align-items: center;
+    }
+    .hdr-row input { flex: 1; }
+
+    .del-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #444;
+      font-size: 18px;
+      line-height: 1;
+      padding: 0 4px;
+      transition: color 0.15s;
+    }
+    .del-btn:hover { color: #e8e8e8; }
+
+    .add-btn {
+      background: none;
+      border: 1px solid #2a2a2a;
+      border-radius: 6px;
+      font-size: 12px;
+      padding: 5px 12px;
+      cursor: pointer;
+      color: #555;
+      font-family: 'Courier New', monospace;
+      transition: all 0.15s;
+    }
+    .add-btn:hover { border-color: #444; color: #e8e8e8; }
+
+    textarea {
+      width: 100%;
+      resize: vertical;
+      min-height: 90px;
+      line-height: 1.5;
+    }
+
+    hr {
+      border: none;
+      border-top: 1px solid #1e1e1e;
+      margin: 16px 0;
+    }
+
+    .status-bar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      font-size: 12px;
+      font-family: 'Courier New', monospace;
+      padding: 3px 10px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .badge-2xx { background: #0d2e1a; color: #4ade80; border: 1px solid #166534; }
+    .badge-3xx { background: #2e2008; color: #fbbf24; border: 1px solid #92400e; }
+    .badge-4xx { background: #2e0d0d; color: #f87171; border: 1px solid #991b1b; }
+    .badge-5xx { background: #2e1a08; color: #fb923c; border: 1px solid #9a3412; }
+    .badge-neutral { background: #1a1a1a; color: #555; border: 1px solid #2a2a2a; }
+
+    .time-tag {
+      font-size: 12px;
+      color: #444;
+      font-family: 'Courier New', monospace;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid #1e1e1e;
+      margin-bottom: 0;
+    }
+
+    .tab {
+      font-size: 12px;
+      padding: 6px 16px;
+      cursor: pointer;
+      color: #444;
+      border: none;
+      background: none;
+      font-family: 'Courier New', monospace;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: color 0.15s;
+    }
+    .tab.active { color: #e8e8e8; border-bottom-color: #e8e8e8; }
+    .tab:hover:not(.active) { color: #888; }
+
+    .tab-content { display: none; padding-top: 10px; }
+    .tab-content.active { display: block; }
+
+    .resp-area {
+      width: 100%;
+      resize: vertical;
+      min-height: 200px;
+      font-size: 12px;
+      line-height: 1.6;
+      background: #141414;
+      border: 1px solid #1e1e1e;
+      border-radius: 6px;
+      padding: 12px;
+      color: #e8e8e8;
+    }
+
+    .headers-table {
+      width: 100%;
+      font-size: 12px;
+      border-collapse: collapse;
+      font-family: 'Courier New', monospace;
+    }
+    .headers-table td {
+      padding: 5px 10px;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .headers-table td:first-child { color: #555; width: 40%; word-break: break-all; }
+    .headers-table td:last-child { color: #e8e8e8; word-break: break-all; }
+
+    .empty-state {
+      text-align: center;
+      color: #333;
+      font-size: 12px;
+      padding: 3rem 0;
+      font-family: 'Courier New', monospace;
+    }
+
+    .loading {
+      text-align: center;
+      color: #444;
+      font-size: 12px;
+      padding: 2rem 0;
+      font-family: 'Courier New', monospace;
+    }
+
+    .spinning {
+      display: inline-block;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+  <h1>Client HTTP</h1>
+
+  <div class="row">
+    <select id="method">
+      <option>GET</option>
+      <option>POST</option>
+      <option>PUT</option>
+      <option>PATCH</option>
+      <option>DELETE</option>
+    </select>
+    <input type="text" id="url" placeholder="https://httpbin.org/get" value="https://httpbin.org/get" />
+    <button class="send-btn" id="send-btn" onclick="sendRequest()">Envoyer</button>
+  </div>
+
+  <div class="section-label">Headers</div>
+  <div id="headers-container"></div>
+  <button class="add-btn" onclick="addHeader()">+ Ajouter un header</button>
+
+  <hr>
+
+  <div class="section-label">Body</div>
+  <textarea id="req-body" placeholder='{"key": "value"}'></textarea>
+
+  <hr>
+
+  <div id="loading-state" class="loading" style="display:none;">
+    <span class="spinning">⟳</span> envoi en cours…
+  </div>
+
+  <div id="empty-state" class="empty-state">la réponse apparaîtra ici</div>
+
+  <div id="response-section" style="display:none;">
+    <div class="status-bar">
+      <span id="status-badge" class="badge badge-neutral">—</span>
+      <span id="time-tag" class="time-tag"></span>
+    </div>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('body')">body</button>
+      <button class="tab" onclick="switchTab('headers')">headers</button>
+    </div>
+    <div id="tab-body" class="tab-content active">
+      <textarea class="resp-area" id="resp-body" readonly></textarea>
+    </div>
+    <div id="tab-headers" class="tab-content">
+      <table class="headers-table" id="resp-headers-table"></table>
+    </div>
+  </div>
+
+  <script>
+    // Disable body for methods that don't use it
+    document.getElementById('method').addEventListener('change', function () {
+      document.getElementById('req-body').disabled = !['POST', 'PUT', 'PATCH'].includes(this.value);
+    });
+
+    function addHeader(k = '', v = '') {
+      const container = document.getElementById('headers-container');
+      const id = 'hdr_' + Date.now();
+      const div = document.createElement('div');
+      div.className = 'hdr-row';
+      div.id = id;
+      div.innerHTML = `
+        <input type="text" placeholder="Header key" value="${k}" />
+        <input type="text" placeholder="Header value" value="${v}" />
+        <button class="del-btn" onclick="document.getElementById('${id}').remove()">×</button>
+      `;
+      container.appendChild(div);
+    }
+
+    function getHeaders() {
+      const rows = document.querySelectorAll('#headers-container .hdr-row');
+      const headers = {};
+      rows.forEach(row => {
+        const inputs = row.querySelectorAll('input');
+        const key = inputs[0].value.trim();
+        const val = inputs[1].value.trim();
+        if (key) headers[key] = val;
+      });
+      return headers;
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      document.querySelector(`.tab[onclick="switchTab('${tab}')"]`).classList.add('active');
+      document.getElementById('tab-' + tab).classList.add('active');
+    }
+
+    function statusClass(code) {
+      if (code >= 200 && code < 300) return 'badge-2xx';
+      if (code >= 300 && code < 400) return 'badge-3xx';
+      if (code >= 400 && code < 500) return 'badge-4xx';
+      if (code >= 500) return 'badge-5xx';
+      return 'badge-neutral';
+    }
+
+    async function sendRequest() {
+      const url = document.getElementById('url').value.trim();
+      if (!url) return;
+
+      const method = document.getElementById('method').value;
+      const body = document.getElementById('req-body').value.trim();
+      const headers = getHeaders();
+
+      // Auto Content-Type if body present and not set
+      if (body && !headers['Content-Type']) {
+        headers['Content-Type'] = 'application/json';
+      }
+
+      const btn = document.getElementById('send-btn');
+      btn.disabled = true;
+      document.getElementById('response-section').style.display = 'none';
+      document.getElementById('empty-state').style.display = 'none';
+      document.getElementById('loading-state').style.display = 'block';
+
+      const t0 = Date.now();
+
+      try {
+        const options = { method, headers };
+        if (['POST', 'PUT', 'PATCH'].includes(method) && body) {
+          options.body = body;
+        }
+
+        const res = await fetch(url, options);
+        const elapsed = Date.now() - t0;
+
+        // Status badge
+        const badge = document.getElementById('status-badge');
+        badge.textContent = `${res.status} ${res.statusText}`;
+        badge.className = 'badge ' + statusClass(res.status);
+        document.getElementById('time-tag').textContent = `${elapsed} ms`;
+
+        // Response body
+        const text = await res.text();
+        let pretty = text;
+        try { pretty = JSON.stringify(JSON.parse(text), null, 2); } catch (e) {}
+        document.getElementById('resp-body').value = pretty;
+
+        // Response headers
+        const table = document.getElementById('resp-headers-table');
+        table.innerHTML = '';
+        res.headers.forEach((val, key) => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${key}</td><td>${val}</td>`;
+          table.appendChild(tr);
+        });
+
+        document.getElementById('loading-state').style.display = 'none';
+        document.getElementById('response-section').style.display = 'block';
+
+      } catch (err) {
+        document.getElementById('loading-state').style.display = 'none';
+        const emptyState = document.getElementById('empty-state');
+        emptyState.style.display = 'block';
+        emptyState.textContent = 'erreur réseau : ' + err.message;
+      }
+
+      btn.disabled = false;
+    }
+  </script>
+
+</body>
+</html>
